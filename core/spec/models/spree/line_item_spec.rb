@@ -20,6 +20,39 @@ describe Spree::LineItem do
       line_item.order.should_receive(:create_tax_charge!)
       line_item.destroy
     end
+
+    it "fetches deleted products" do
+      line_item.product.destroy
+      expect(line_item.reload.product).to be_a Spree::Product
+    end
+
+    it "fetches deleted variants" do
+      line_item.variant.destroy
+      expect(line_item.reload.variant).to be_a Spree::Variant
+    end
+  end
+
+  # Test for #3391
+  context '#copy_price' do
+    it "copies over a variant's prices" do
+      line_item.price = nil
+      line_item.cost_price = nil
+      line_item.currency = nil
+      line_item.copy_price
+      variant = line_item.variant
+      line_item.price.should == variant.price
+      line_item.cost_price.should == variant.cost_price
+      line_item.currency.should == variant.currency
+    end
+  end
+
+  # Test for #3481
+  context '#copy_tax_category' do
+    it "copies over a variant's tax category" do
+      line_item.tax_category = nil
+      line_item.copy_tax_category
+      line_item.tax_category.should == line_item.variant.product.tax_category
+    end
   end
 
   describe '.currency' do
@@ -46,4 +79,3 @@ describe Spree::LineItem do
     end
   end
 end
-

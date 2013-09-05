@@ -76,7 +76,7 @@ module Spree
 
       def load_data
         @amount = params[:amount] || load_order.total
-        @payment_methods = PaymentMethod.available
+        @payment_methods = PaymentMethod.available(:back_end)
         if @payment and @payment.payment_method
           @payment_method = @payment.payment_method
         else
@@ -92,7 +92,7 @@ module Spree
       #
       # Otherwise redirect user to that step
       def can_transition_to_payment
-        unless @order.payment? || @order.complete?
+        unless @order.billing_address.present?
           flash[:notice] = Spree.t(:fill_in_customer_info)
           redirect_to edit_admin_order_customer_url(@order)
         end
@@ -101,6 +101,7 @@ module Spree
       def load_order
         @order = Order.find_by_number!(params[:order_id])
         authorize! action, @order
+        @order
       end
 
       def load_payment

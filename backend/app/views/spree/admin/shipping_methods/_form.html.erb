@@ -15,6 +15,16 @@
     <% end %>
   </div>
 
+  <div class="alpha omega twelve columns">
+    <div class="alpha six columns">
+      <%= f.field_container :admin_name do %>
+        <%= f.label :admin_name, Spree.t(:internal_name) %><br />
+        <%= f.text_field :admin_name, :class => 'fullwidth', :label => false  %>
+        <%= error_message_on :shipping_method, :admin_name %>
+      <% end %>
+    </div>
+  </div>
+
   <div class="alpha twelve columns">
     <%= f.field_container :tracking_url do %>
       <%= f.label :tracking_url, Spree.t(:tracking_url) %><br />
@@ -30,8 +40,10 @@
       <legend align="center"><%= Spree.t(:categories) %></legend>
           <%= f.field_container :categories do %>
         <% Spree::ShippingCategory.all.each do |category| %>
-          <%= f.label :shipping_category_id, category.name %>
-          <%= check_box_tag('shipping_method[shipping_categories][]', category.id, @shipping_method.shipping_categories.include?(category)) %><br>
+          <%= label_tag do %>
+            <%= check_box_tag('shipping_method[shipping_categories][]', category.id, @shipping_method.shipping_categories.include?(category)) %>
+            <%= category.name %><br>
+          <% end %>
         <% end %>
         <%= error_message_on :shipping_method, :shipping_category_id %>
       <% end %>
@@ -43,8 +55,11 @@
       <legend align="center"><%= Spree.t(:zones) %></legend>
       <%= f.field_container :zones do %>
         <% Spree::Zone.all.each do |zone| %>
-          <%= f.label :zone_id, zone.name %>
-          <%= check_box_tag('shipping_method[zones][]', zone.id, @shipping_method.zones.include?(zone)) %><br>
+          <%= label_tag do %>
+            <%= check_box_tag('shipping_method[zones][]', zone.id, @shipping_method.zones.include?(zone)) %>
+            <%= zone.name %>
+          <% end %>
+          <br>
         <% end %>
         <%= error_message_on :shipping_method, :zone_id %>
       <% end %>

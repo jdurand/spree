@@ -55,7 +55,7 @@ describe Spree::Order do
 
   context "#associate_user!" do
     it "should associate a user with a persisted order" do
-      order = FactoryGirl.create(:order_with_line_items)
+      order = FactoryGirl.create(:order_with_line_items, created_by: nil)
       user = FactoryGirl.create(:user)
 
       order.user = nil
@@ -63,12 +63,34 @@ describe Spree::Order do
       order.associate_user!(user)
       order.user.should == user
       order.email.should == user.email
+      order.created_by.should == user
 
       # verify that the changes we made were persisted
       order.reload
       order.user.should == user
       order.email.should == user.email
+      order.created_by.should == user
     end
+
+    it "should not overwrite the created_by if it already is set" do
+      creator = create(:user)
+      order = FactoryGirl.create(:order_with_line_items, created_by: creator)
+      user = FactoryGirl.create(:user)
+
+      order.user = nil
+      order.email = nil
+      order.associate_user!(user)
+      order.user.should == user
+      order.email.should == user.email
+      order.created_by.should == creator
+
+      # verify that the changes we made were persisted
+      order.reload
+      order.user.should == user
+      order.email.should == user.email
+      order.created_by.should == creator
+    end
+
 
     it "should associate a user with a non-persisted order" do
       order = Spree::Order.new
@@ -125,6 +147,18 @@ describe Spree::Order do
     end
   end
 
+  context "checking if order is paid" do
+    context "payment_state is paid" do
+      before { order.stub payment_state: 'paid' }
+      it { expect(order).to be_paid }
+    end
+
+    context "payment_state is credit_owned" do
+      before { order.stub payment_state: 'credit_owed' }
+      it { expect(order).to be_paid }
+    end
+  end
+
   context "#finalize!" do
     let(:order) { Spree::Order.create }
     it "should set completed_at" do
@@ -165,7 +199,7 @@ describe Spree::Order do
     end
 
     it "should send an order confirmation email" do
-      mail_message = mock "Mail::Message"
+      mail_message = double "Mail::Message"
       Spree::OrderMailer.should_receive(:confirm_email).with(order.id).and_return mail_message
       mail_message.should_receive :deliver
       order.finalize!
@@ -180,13 +214,10 @@ describe Spree::Order do
       # Stub this method as it's called due to a callback
       # and it's irrelevant to this test
       order.stub :has_available_shipment
-
       Spree::OrderMailer.stub_chain :confirm_email, :deliver
-      adjustment1 = mock_model(Spree::Adjustment, :mandatory => true)
-      adjustment2 = mock_model(Spree::Adjustment, :mandatory => false)
-      order.stub :adjustments => [adjustment1, adjustment2]
-      adjustment1.should_receive(:update_column).with("state", "closed")
-      adjustment2.should_receive(:update_column).with("state", "closed")
+      adjustments = double
+      order.stub :adjustments => adjustments
+      expect(adjustments).to receive(:update_all).with(state: 'closed')
       order.finalize!
     end
 
@@ -197,13 +228,32 @@ describe Spree::Order do
   end
 
   context "#process_payments!" do
+    let(:payment) { stub_model(Spree::Payment) }
+    before { order.stub :pending_payments => [payment], :total => 10 }
+
     it "should process the payments" do
-      order.stub(:total).and_return(10)
-      payment = stub_model(Spree::Payment)
-      payments = [payment]
-      order.stub(:payments).and_return(payments)
-      payments.first.should_receive(:process!)
-      order.process_payments!
+      payment.should_receive(:process!)
+      order.process_payments!.should be_true
+    end
+
+    it "should return false if no pending_payments available" do
+      order.stub :pending_payments => []
+      order.process_payments!.should be_false
+    end
+
+    context "when a payment raises a GatewayError" do
+      before { payment.should_receive(:process!).and_raise(Spree::Core::GatewayError) }
+
+      it "should return true when configured to allow checkout on gateway failures" do
+        Spree::Config.set :allow_checkout_on_gateway_error => true
+        order.process_payments!.should be_true
+      end
+
+      it "should return false when not configured to allow checkout on gateway failures" do
+        Spree::Config.set :allow_checkout_on_gateway_error => false
+        order.process_payments!.should be_false
+      end
+
     end
   end
 
@@ -489,6 +539,22 @@ describe Spree::Order do
     end
   end
 
+  context "promotion adjustments" do
+    let(:originator) { double("Originator", id: 1) }
+    let(:adjustment) { double("Adjustment", originator: originator) }
+
+    before { order.stub_chain(:adjustments, :includes, :promotion, reload: [adjustment]) }
+
+    context "order has an adjustment from given promo action" do
+      it { expect(order.promotion_credit_exists? originator).to be_true }
+    end
+
+    context "order has no adjustment from given promo action" do
+      before { originator.stub(id: 12) }
+      it { expect(order.promotion_credit_exists? originator).to be_true }
+    end
+  end
+
   context "payment required?" do
     let(:order) { Spree::Order.new }
 
@@ -499,27 +565,6 @@ describe Spree::Order do
     context "total > zero" do
       before { order.stub(total: 1) }
       it { order.payment_required?.should be_true }
-    end
-  end
-
-  # Related to the fix for #2694
-  context "#has_unprocessed_payments?" do
-    let!(:persisted_order) { create(:order) }
-
-    context "with payments in the 'checkout' state" do
-      before do
-        create(:payment, :order => persisted_order, :state => 'checkout')
-      end
-
-      it "returns true" do
-        assert persisted_order.has_unprocessed_payments?
-      end
-    end
-
-    context "with no payments in the 'checkout' state" do
-      it "returns false" do
-        assert !persisted_order.has_unprocessed_payments?
-      end
     end
   end
 
@@ -546,5 +591,18 @@ describe Spree::Order do
       order.finalize!
     end
   end
-end
 
+  context "ensure shipments will be updated" do
+    before { Spree::Shipment.create!(order: order) }
+
+    it "destroys current shipments" do
+      order.ensure_updated_shipments
+      expect(order.shipments).to be_empty
+    end
+
+    it "puts order back in address state" do
+      order.ensure_updated_shipments
+      expect(order.state).to eql "address"
+    end
+  end
+end

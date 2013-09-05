@@ -12,7 +12,7 @@ module Spree
       end
 
       def product_attributes
-        [:id, :name, :description, :price, :available_on, :permalink, :meta_description, :meta_keywords, :taxon_ids]
+        [:id, :name, :description, :price, :available_on, :permalink, :meta_description, :meta_keywords, :shipping_category_id, :taxon_ids]
       end
 
       def product_property_attributes
@@ -32,7 +32,7 @@ module Spree
       end
 
       def order_attributes
-        [:id, :number, :item_total, :total, :state, :adjustment_total, :user_id, :created_at, :updated_at, :completed_at, :payment_total, :shipment_state, :payment_state, :email, :special_instructions]
+        [:id, :number, :item_total, :total, :state, :adjustment_total, :user_id, :created_at, :updated_at, :completed_at, :payment_total, :shipment_state, :payment_state, :email, :special_instructions, :token]
       end
 
       def line_item_attributes
@@ -69,6 +69,10 @@ module Spree
 
       def return_authorization_attributes
         [:id, :number, :state, :amount, :order_id, :reason, :created_at, :updated_at]
+      end
+
+      def address_attributes
+        [:id, :firstname, :lastname, :full_name, :address1, :address2, :city, :zipcode, :phone, :company, :alternative_phone, :country_id, :state_id, :state_name]
       end
 
       def country_attributes

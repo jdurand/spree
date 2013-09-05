@@ -16,12 +16,17 @@ module Spree
     # associations try to save and then in turn try to call +update!+ again.)
     def update
       update_totals
-      update_payment_state
 
-      # give each of the shipments a chance to update themselves
-      shipments.each { |shipment| shipment.update!(order) }#(&:update!)
-      update_shipment_state
-      update_adjustments
+      if order.completed?
+        update_payment_state
+
+        # give each of the shipments a chance to update themselves
+        shipments.each { |shipment| shipment.update!(order) }
+        update_shipment_state
+      end
+      
+      update_promotion_adjustments
+      update_shipping_adjustments
       # update totals a second time in case updated adjustments have an effect on the total
       update_totals
 
@@ -120,9 +125,15 @@ module Spree
     #
     # Adjustments will check if they are still eligible. Ineligible adjustments
     # are preserved but not counted towards adjustment_total.
-    def update_adjustments
-      order.adjustments.reload.each { |adjustment| adjustment.update! }
+    def update_promotion_adjustments
+      order.adjustments.reload.promotion.each { |adjustment| adjustment.update!(order) }
       choose_best_promotion_adjustment
+    end
+
+    # Shipping adjustments don't receive order on update! because they calculated
+    # over a shipping / package object rather than an order object
+    def update_shipping_adjustments
+      order.adjustments.reload.shipping.each { |adjustment| adjustment.update! }
     end
 
     private
@@ -131,7 +142,7 @@ module Spree
       # This promotion provides the most discount, and if two promotions
       # have the same amount, then it will pick the latest one.
       def choose_best_promotion_adjustment
-        if best_promotion_adjustment = order.adjustments.promotion.reorder("amount ASC, created_at DESC").first
+        if best_promotion_adjustment = order.adjustments.promotion.eligible.reorder("amount ASC, created_at DESC").first
           other_promotions = order.adjustments.promotion.where("id NOT IN (?)", best_promotion_adjustment.id)
           other_promotions.update_all(eligible: false)
         end

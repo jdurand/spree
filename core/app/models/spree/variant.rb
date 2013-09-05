@@ -1,5 +1,7 @@
 module Spree
   class Variant < ActiveRecord::Base
+    acts_as_paranoid
+
     belongs_to :product, touch: true, class_name: 'Spree::Product'
 
     delegate_belongs_to :product, :name, :description, :permalink, :available_on,
@@ -14,7 +16,7 @@ module Spree
     has_many :inventory_units
     has_many :line_items
 
-    has_many :stock_items, dependent: :destroy
+    has_many :stock_items, dependent: :destroy, :order => "id ASC"
     has_many :stock_locations, through: :stock_items
     has_many :stock_movements
 
@@ -133,6 +135,17 @@ module Spree
       Spree::Stock::Quantifier.new(self).can_supply?(quantity)
     end
 
+    def total_on_hand
+      Spree::Stock::Quantifier.new(self).total_on_hand
+    end
+
+    # Product may be created with deleted_at already set,
+    # which would make AR's default finder return nil.
+    # This is a stopgap for that little problem.
+    def product
+      Spree::Product.unscoped { super }
+    end
+
     private
       # strips all non-price-like characters from the price, taking into account locale settings
       def parse_price(price)
@@ -167,8 +180,8 @@ module Spree
       end
 
       def create_stock_items
-        Spree::StockLocation.all.each do |stock_location|
-          stock_location.stock_items.create!(variant: self)
+        StockLocation.all.each do |stock_location|
+          stock_location.propagate_variant(self) if stock_location.propagate_all_variants?
         end
       end
 

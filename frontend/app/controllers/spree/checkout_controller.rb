@@ -15,6 +15,9 @@ module Spree
 
     before_filter :associate_user
     before_filter :check_authorization
+    before_filter :apply_coupon_code
+
+    before_filter :setup_for_current_state
 
     helper 'spree/orders'
 
@@ -24,10 +27,9 @@ module Spree
     def update
       if @order.update_attributes(object_params)
         fire_event('spree.checkout.update')
-        return if after_update_attributes
 
         unless @order.next
-          flash[:error] = Spree.t(:payment_processing_failed)
+          flash[:error] = @order.errors[:base].join("\n")
           redirect_to checkout_state_path(@order.state) and return
         end
 
@@ -69,7 +71,6 @@ module Spree
           redirect_to checkout_state_path(@order.state) if @order.can_go_to_state?(params[:state]) && !skip_state_validation?
           @order.state = params[:state]
         end
-        setup_for_current_state
       end
 
       def ensure_checkout_allowed
@@ -133,10 +134,12 @@ module Spree
       end
 
       def before_payment
-        packages = @order.shipments.map { |s| s.to_package }
-        @differentiator = Spree::Stock::Differentiator.new(@order, packages)
-        @differentiator.missing.each do |variant, quantity|
-          @order.contents.remove(variant, quantity)
+        if @order.checkout_steps.include? "delivery"
+          packages = @order.shipments.map { |s| s.to_package }
+          @differentiator = Spree::Stock::Differentiator.new(@order, packages)
+          @differentiator.missing.each do |variant, quantity|
+            @order.contents.remove(variant, quantity)
+          end
         end
       end
 
@@ -149,15 +152,17 @@ module Spree
         authorize!(:edit, current_order, session[:access_token])
       end
 
-      def after_update_attributes
-        coupon_result = Spree::Promo::CouponApplicator.new(@order).apply
-        if coupon_result[:coupon_applied?]
-          flash[:success] = coupon_result[:success] if coupon_result[:success].present?
-          return false
-        else
-          flash[:error] = coupon_result[:error]
-          respond_with(@order) { |format| format.html { render :edit } }
-          return true
+      def apply_coupon_code
+        if params[:order] && params[:order][:coupon_code]
+          @order.coupon_code = params[:order][:coupon_code] 
+
+          coupon_result = Spree::Promo::CouponApplicator.new(@order).apply
+          if coupon_result[:coupon_applied?]
+            flash[:success] = coupon_result[:success] if coupon_result[:success].present?
+          else
+            flash[:error] = coupon_result[:error]
+            respond_with(@order) { |format| format.html { render :edit } } and return
+          end
         end
       end
   end

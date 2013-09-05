@@ -77,11 +77,9 @@ module Spree
     end
 
     context "pagination" do
-      default_per_page(1)
-
       it "can select the next page of variants" do
         second_variant = create(:variant)
-        api_get :index, :page => 2
+        api_get :index, :page => 2, :per_page => 1
         json_response["variants"].first.should have_attributes(attributes)
         json_response["total_count"].should == 3
         json_response["current_page"].should == 2
@@ -167,7 +165,7 @@ module Spree
       it "can delete a variant" do
         api_delete :destroy, :id => variant.to_param
         response.status.should == 204
-        lambda { variant.reload }.should raise_error(ActiveRecord::RecordNotFound)
+        lambda { Spree::Variant.find(variant.id) }.should raise_error(ActiveRecord::RecordNotFound)
       end
     end
 

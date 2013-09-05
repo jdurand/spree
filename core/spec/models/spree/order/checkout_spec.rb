@@ -4,8 +4,8 @@ describe Spree::Order do
   let(:order) { Spree::Order.new }
 
   context "with default state machine" do
-    it "has the following transitions" do
-      transitions = [
+    let(:transitions) do
+      [
         { :address => :delivery },
         { :delivery => :payment },
         { :payment => :confirm },
@@ -13,6 +13,9 @@ describe Spree::Order do
         { :payment => :complete },
         { :delivery => :complete }
       ]
+    end
+
+    it "has the following transitions" do
       transitions.each do |transition|
         transition = Spree::Order.find_transition(:from => transition.keys.first, :to => transition.values.first)
         transition.should_not be_nil
@@ -22,6 +25,20 @@ describe Spree::Order do
     it "does not have a transition from delivery to confirm" do
       transition = Spree::Order.find_transition(:from => :delivery, :to => :confirm)
       transition.should be_nil
+    end
+
+    it '.find_transition when contract was broken' do
+      Spree::Order.find_transition({foo: :bar, baz: :dog}).should be_false
+    end
+
+    it '.remove_transition' do
+      options = {:from => transitions.first.keys.first, :to => transitions.first.values.first}
+      Spree::Order.stub(:next_event_transition).and_return([options])
+      Spree::Order.remove_transition(options).should be_true
+    end
+
+    it '.remove_transition when contract was broken' do
+      Spree::Order.remove_transition(nil).should be_false
     end
 
     context "#checkout_steps" do
@@ -67,19 +84,39 @@ describe Spree::Order do
     end
 
     it "transitions to address" do
+      order.line_items << FactoryGirl.create(:line_item)
+      order.email = "user@example.com"
       order.next!
       order.state.should == "address"
+    end
+
+    it "cannot transition to address without any line items" do
+      order.line_items.should be_blank
+      lambda { order.next! }.should raise_error(StateMachine::InvalidTransition, /#{Spree.t(:there_are_no_items_for_this_order)}/)
     end
 
     context "from address" do
       before do
         order.state = 'address'
+        order.stub(:has_available_payment)
+        shipment = FactoryGirl.create(:shipment, :order => order)
+        order.email = "user@example.com"
+        order.save!
       end
 
       it "transitions to delivery" do
-        order.stub(:has_available_payment)
+        order.stub(:ensure_available_shipping_rates => true)
         order.next!
         order.state.should == "delivery"
+      end
+
+      context "cannot transition to delivery" do
+        context "if there are no shipping rates for any shipment" do
+          specify do
+            transition = lambda { order.next! }
+            transition.should raise_error(StateMachine::InvalidTransition, /#{Spree.t(:items_cannot_be_shipped)}/)
+          end
+        end
       end
     end
 
@@ -131,11 +168,10 @@ describe Spree::Order do
         before do
           order.stub :confirmation_required? => false
           order.stub :payment_required? => true
-          order.stub_chain(:has_unprocessed_payments?).and_return(true)
         end
 
         it "transitions to complete" do
-          order.should_receive(:process_payments!).once
+          order.should_receive(:process_payments!).once.and_return true
           order.next!
           order.state.should == "complete"
         end
@@ -206,7 +242,7 @@ describe Spree::Order do
   end
 
   context "insert checkout step" do
-    before do 
+    before do
       @old_checkout_flow = Spree::Order.checkout_flow
       Spree::Order.class_eval do
         insert_checkout_step :new_step, before: :address
@@ -250,7 +286,7 @@ describe Spree::Order do
   end
 
   context "remove checkout step" do
-    before do 
+    before do
       @old_checkout_flow = Spree::Order.checkout_flow
       Spree::Order.class_eval do
         remove_checkout_step :address

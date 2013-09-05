@@ -5,7 +5,7 @@ require 'spec_helper'
 module ThirdParty
   class Extension < ActiveRecord::Base
     # nasty hack so we don't have to create a table to back this fake model
-    set_table_name :spree_products
+    self.table_name = 'spree_products'
   end
 end
 
@@ -39,10 +39,9 @@ describe Spree::Product do
     end
 
     context "product has no variants" do
-      context "#delete" do
+      context "#destroy" do
         it "should set deleted_at value" do
-          product.delete
-          product.reload
+          product.destroy
           product.deleted_at.should_not be_nil
           product.master.deleted_at.should_not be_nil
         end
@@ -54,9 +53,9 @@ describe Spree::Product do
         create(:variant, :product => product)
       end
 
-      context "#delete" do
+      context "#destroy" do
         it "should set deleted_at value" do
-          product.delete
+          product.destroy
           product.deleted_at.should_not be_nil
           product.variants_including_master.all? { |v| !v.deleted_at.nil? }.should be_true
         end
@@ -128,6 +127,21 @@ describe Spree::Product do
         product.variants_and_option_values.should == [low]
       end
     end
+
+    describe 'Variants sorting' do
+      context 'without master variant' do
+        it 'sorts variants by position' do
+          product.variants.to_sql.should match(/ORDER BY (\`|\")spree_variants(\`|\").position ASC/)
+        end
+      end
+
+      context 'with master variant' do
+        it 'sorts variants by position' do
+          product.variants_including_master.to_sql.should match(/ORDER BY (\`|\")spree_variants(\`|\").position ASC/)
+        end
+      end
+    end
+
   end
 
   context "validations" do
@@ -202,19 +216,16 @@ describe Spree::Product do
         end
       end
 
-      context "make_permalink should declare validates_uniqueness_of" do
+      context "permalinks must be unique" do
         before do
           @product1 = create(:product, :name => 'foo')
+        end
+
+        it "cannot create another product with the same permalink" do
           @product2 = create(:product, :name => 'foo')
-          @product2.update_attributes(:permalink => 'foo')
-        end
-
-        it "should have an error" do
-          @product2.errors.size.should == 1
-        end
-
-        it "should have error message that permalink is already taken" do
-          @product2.errors.full_messages.first.should == 'Permalink has already been taken'
+          lambda do
+            @product2.update_attributes(:permalink => @product1.permalink)
+          end.should raise_error(ActiveRecord::RecordNotUnique)
         end
       end
 
@@ -249,6 +260,18 @@ describe Spree::Product do
       @product.save_permalink(@product.name)
       @product.permalink.should == "foobar-1"
     end
+
+    context "override permalink of deleted product" do 
+      let(:product) { create(:product, :name => "foo") } 
+
+      it "should create product with same permalink from name like deleted product" do 
+        product.permalink.should == "foo" 
+        product.destroy 
+        
+        new_product = create(:product, :name => "foo") 
+        new_product.permalink.should == "foo" 
+      end 
+    end 
   end
 
   context "properties" do
@@ -292,7 +315,7 @@ describe Spree::Product do
   context '#create' do
     before do
       @prototype = create(:prototype)
-      @product = Spree::Product.new(:name => "Foo", :price => 1.99)
+      @product = Spree::Product.new(name: "Foo", price: 1.99, shipping_category_id: 1)
     end
 
     context "when prototype is supplied" do
@@ -410,7 +433,7 @@ describe Spree::Product do
 
     it 'should return master variants quantity' do
       product = build(:product)
-      product.stub stock_items: [mock(Spree::StockItem, count_on_hand: 5)]
+      product.stub stock_items: [double(Spree::StockItem, count_on_hand: 5)]
       product.total_on_hand.should eql(5)
     end
   end

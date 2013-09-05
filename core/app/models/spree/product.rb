@@ -20,6 +20,7 @@
 
 module Spree
   class Product < ActiveRecord::Base
+    acts_as_paranoid
     has_many :product_option_types, dependent: :destroy
     has_many :option_types, through: :product_option_types
     has_many :product_properties, dependent: :destroy
@@ -44,10 +45,8 @@ module Spree
 
     has_many :variants_including_master,
       class_name: 'Spree::Variant',
-      conditions: { deleted_at: nil },
-      dependent: :destroy
-
-    has_many :variants_including_master_and_deleted, class_name: 'Spree::Variant'
+      dependent: :destroy,
+      order: "#{::Spree::Variant.quoted_table_name}.position ASC"
 
     has_many :prices, through: :variants, order: 'spree_variants.position, spree_variants.id, currency'
     has_many :stock_items, through: :variants
@@ -67,16 +66,35 @@ module Spree
 
     accepts_nested_attributes_for :variants, allow_destroy: true
 
-    validates :name, :permalink, presence: true
+    validates :name, presence: true
+    validates :permalink, presence: true
     validates :price, presence: true, if: proc { Spree::Config[:require_master_price] }
+    validates :shipping_category_id, presence: true
 
     attr_accessor :option_values_hash
 
-    attr_accessible :name, :description, :available_on, :permalink, :meta_description,
-                    :meta_keywords, :price, :sku, :deleted_at, :prototype_id,
-                    :option_values_hash, :weight, :height, :width, :depth,
-                    :shipping_category_id, :tax_category_id, :product_properties_attributes,
-                    :variants_attributes, :taxon_ids, :option_type_ids, :cost_currency
+    attr_accessible :available_on,
+                    :cost_currency,
+                    :deleted_at,
+                    :depth,
+                    :description,
+                    :height,
+                    :meta_description,
+                    :meta_keywords,
+                    :name,
+                    :option_type_ids,
+                    :option_values_hash,
+                    :permalink,
+                    :price,
+                    :product_properties_attributes,
+                    :prototype_id,
+                    :shipping_category_id,
+                    :sku,
+                    :tax_category_id,
+                    :taxon_ids,
+                    :weight,
+                    :width,
+                    :variants_attributes
 
     attr_accessible :cost_price if Variant.table_exists? && Variant.column_names.include?('cost_price')
 
@@ -87,6 +105,8 @@ module Spree
     alias :options :product_option_types
 
     after_initialize :ensure_master
+
+    before_destroy :punch_permalink
 
     def variants_with_only_master
       ActiveSupport::Deprecation.warn("[SPREE] Spree::Product#variants_with_only_master will be deprecated in Spree 1.3. Please use Spree::Product#master instead.")
@@ -108,13 +128,6 @@ module Spree
       else
         TaxCategory.find(self[:tax_category_id])
       end
-    end
-
-    # override the delete method to set deleted_at value
-    # instead of actually deleting the product.
-    def delete
-      self.update_column(:deleted_at, Time.now)
-      variants_including_master.update_all(deleted_at: Time.now)
     end
 
     # Adding properties and option types on creation based on a chosen prototype
@@ -206,6 +219,13 @@ module Spree
       end
     end
 
+    # Master variant may be deleted (i.e. when the product is deleted)
+    # which would make AR's default finder return nil.
+    # This is a stopgap for that little problem.
+    def master
+      super || variants_including_master.with_deleted.where(:is_master => true).first
+    end
+
     private
 
       # Builds variants from a hash of option types & values
@@ -244,6 +264,10 @@ module Spree
         return unless new_record?
         self.master ||= Variant.new
       end
+
+      def punch_permalink
+        update_attribute :permalink, "#{Time.now.to_i}_#{permalink}" # punch permalink with date prefix
+      end  
   end
 end
 

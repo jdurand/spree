@@ -78,7 +78,7 @@ describe Spree::Shipment do
     end
 
     context 'refresh_rates' do
-      let(:mock_estimator) { mock('estimator', shipping_rates: shipping_rates) }
+      let(:mock_estimator) { double('estimator', shipping_rates: shipping_rates) }
 
       it 'should request new rates, and maintain shipping_method selection' do
         Spree::Stock::Estimator.should_receive(:new).with(shipment.order).and_return(mock_estimator)
@@ -100,6 +100,16 @@ describe Spree::Shipment do
         shipment.shipping_rates.delete_all
         shipment.stub(shipped?: true)
         shipment.refresh_rates.should == []
+      end
+
+      context 'to_package' do
+        it 'should use symbols for states when adding contents to package' do
+          shipment.stub_chain(:inventory_units, includes: [ build(:inventory_unit, variant: variant, state: 'on_hand'),
+                                                            build(:inventory_unit, variant: variant, state: 'backordered') ] )
+          package = shipment.to_package
+          package.on_hand.count.should eq 1
+          package.backordered.count.should eq 1
+        end
       end
     end
   end
@@ -286,7 +296,7 @@ describe Spree::Shipment do
     end
 
     it "should send a shipment email" do
-      mail_message = mock 'Mail::Message'
+      mail_message = double 'Mail::Message'
       shipment_id = nil
       Spree::ShipmentMailer.should_receive(:shipped_email) { |*args|
         shipment_id = args[0]
@@ -380,6 +390,14 @@ describe Spree::Shipment do
       shipment.tracking = '1Z12345'
 
       shipment.tracking_url.should == :some_url
+    end
+  end
+
+  # Regression test for #3349
+  context "#destroy" do
+    it "destroys linked shipping_rates" do
+      reflection = Spree::Shipment.reflect_on_association(:shipping_rates)
+      reflection.options[:dependent] = :destroy
     end
   end
 end

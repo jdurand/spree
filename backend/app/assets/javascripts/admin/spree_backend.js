@@ -1,5 +1,5 @@
 //= require jquery-migrate-1.0.0
-//= require jquery-ui
+//= require jquery.ui.all
 //= require modernizr
 //= require jquery.cookie
 //= require jquery.delayedobserver
@@ -15,5 +15,5 @@
 //= require responsive-tables
 //= require jquery.horizontalNav
 //= require spree
+//= require admin/spree-select2
 //= require_tree .
-

@@ -3,8 +3,6 @@
 # the one component of Spree.
 source 'https://rubygems.org'
 
-gem 'json'
-gem 'multi_json'
 gem 'mysql2'
 gem 'pg'
 gem 'sqlite3'
@@ -17,15 +15,14 @@ group :assets do
 end
 
 group :test do
-  gem 'capybara', '~> 1.1'
-  gem 'database_cleaner', '0.7.1'
+  gem 'capybara', '~> 2.1'
+  gem 'database_cleaner', '~> 1.0.1'
   gem 'email_spec', '1.4.0'
   gem 'factory_girl_rails', '~> 4.2.1'
-  gem 'ffaker'
   gem 'launchy'
   gem 'pry'
-  gem 'rspec-rails', '~> 2.13.0'
-  gem 'selenium-webdriver', '2.33.0'
+  gem 'rspec-rails', '~> 2.14.0'
+  gem 'selenium-webdriver', '~> 2.35'
   gem 'simplecov'
   gem 'webmock', '1.8.11'
 end

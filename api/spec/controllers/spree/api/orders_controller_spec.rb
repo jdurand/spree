@@ -9,7 +9,7 @@ module Spree
                         :state, :adjustment_total,
                         :user_id, :created_at, :updated_at,
                         :completed_at, :payment_total, :shipment_state,
-                        :payment_state, :email, :special_instructions] }
+                        :payment_state, :email, :special_instructions, :token] }
 
 
     before do
@@ -55,28 +55,84 @@ module Spree
       assert_unauthorized!
     end
 
-    it "can create an order" do
-      variant = create(:variant)
-      api_post :create, :order => { :line_items => { "0" => { :variant_id => variant.to_param, :quantity => 5 } } }
-      response.status.should == 201
-      order = Order.last
-      order.line_items.count.should == 1
-      order.line_items.first.variant.should == variant
-      order.line_items.first.quantity.should == 5
-      json_response["state"].should == "cart"
+    context "create order" do
+      let(:current_api_user) do
+        user = Spree.user_class.new(:email => "spree@example.com")
+        user.generate_spree_api_key!
+        user
+      end
+
+      it "can create an order" do
+        variant = create(:variant)
+        api_post :create, :order => { :line_items => { "0" => { :variant_id => variant.to_param, :quantity => 5 } } }
+        response.status.should == 201
+        order = Order.last
+        order.line_items.count.should == 1
+        order.line_items.first.variant.should == variant
+        order.line_items.first.quantity.should == 5
+        json_response["state"].should == "cart"
+        order.user.should == current_api_user
+        order.email == current_api_user.email
+        json_response["user_id"].should == current_api_user.id
+      end
+
+      # Regression test for #3404
+      it "can specify additional parameters for a line item" do
+        variant = create(:variant)
+        Order.should_receive(:create!).and_return(order = Spree::Order.new)
+        order.stub(:associate_user!)
+        order.stub_chain(:contents, :add).and_return(line_item = double('LineItem'))
+        line_item.should_receive(:update_attributes).with("special" => true)
+        api_post :create, :order => { 
+          :line_items => {
+            "0" => {
+              :variant_id => variant.to_param, :quantity => 5, :special => true
+            }
+          }
+        }
+        response.status.should == 201
+      end
+
+      # Regression test for #3404
+      it "does not update line item needlessly" do
+        variant = create(:variant)
+        Order.should_receive(:create!).and_return(order = Spree::Order.new)
+        order.stub(:associate_user!)
+        order.stub_chain(:contents, :add).and_return(line_item = double('LineItem'))
+        line_item.should_not_receive(:update_attributes)
+        api_post :create, :order => { 
+          :line_items => {
+            "0" => {
+              :variant_id => variant.to_param, :quantity => 5
+            }
+          }
+        }
+      end
     end
 
     it "can create an order without any parameters" do
-      lambda { api_post :create }.should_not raise_error(NoMethodError)
+      lambda { api_post :create }.should_not raise_error
       response.status.should == 201
       order = Order.last
       json_response["state"].should == "cart"
     end
 
     context "working with an order" do
+
+      let(:variant) { create(:variant) }
+      let!(:line_item) { order.contents.add(variant, 1) }
+      let!(:payment_method) { create(:payment_method) }
+
+      let(:address_params) { { :country_id => Country.first.id, :state_id => State.first.id } }
+      let(:billing_address) { { :firstname => "Tiago", :lastname => "Motta", :address1 => "Av Paulista",
+                                :city => "Sao Paulo", :zipcode => "1234567", :phone => "12345678",
+                                :country_id => Country.first.id, :state_id => State.first.id} }
+      let(:shipping_address) { { :firstname => "Tiago", :lastname => "Motta", :address1 => "Av Paulista",
+                                 :city => "Sao Paulo", :zipcode => "1234567", :phone => "12345678",
+                                 :country_id => Country.first.id, :state_id => State.first.id} }
+
       before do
         Order.any_instance.stub :user => current_api_user
-        create(:payment_method)
         order.next # Switch from cart to address
         order.bill_address = nil
         order.ship_address = nil
@@ -100,10 +156,26 @@ module Spree
       let!(:payment_method) { create(:payment_method) }
 
       it "can add line items" do
-        api_put :update, :id => order.to_param, :order => { :line_items => [{:variant_id => create(:variant).id, :quantity => 2}] }
+        api_put :update, :id => order.to_param, :order => {
+          :line_items_attributes => [{:variant_id => create(:variant).id, :quantity => 2}] }
 
         response.status.should == 200
         json_response['item_total'].to_f.should_not == order.item_total.to_f
+        json_response['line_items'].count.should == 2
+        json_response['line_items'].first['quantity'].should == 1
+        json_response['line_items'].last['quantity'].should == 2
+      end
+
+      it "updates quantities of existing line items" do
+        api_put :update, :id => order.to_param, :order => {
+          :line_items => {
+            line_item.id => { :quantity => 10 }
+          }
+        }
+
+        response.status.should == 200
+        json_response['line_items'].count.should == 1
+        json_response['line_items'].first['quantity'].should == 10
       end
 
       it "can add billing address" do
@@ -140,6 +212,20 @@ module Spree
         json_response['error'].should_not be_nil
         json_response['errors'].should_not be_nil
         json_response['errors']['ship_address.firstname'].first.should eq "can't be blank"
+      end
+
+      context "order has shipments" do
+        before { order.create_proposed_shipments }
+
+        it "clears out all existing shipments on line item udpate" do
+          previous_shipments = order.shipments
+          api_put :update, :id => order.to_param, :order => {
+            :line_items => {
+              line_item.id => { :quantity => 10 }
+            }
+          }
+          expect(order.reload.shipments).to be_empty
+        end
       end
 
       context "with a line item" do

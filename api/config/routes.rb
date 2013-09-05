@@ -18,21 +18,27 @@ Spree::Core::Engine.routes.draw do
     resources :checkouts do
       member do
         put :next
+        put :advance
       end
     end
 
-    resources :variants, :only => [:index] do
-    end
+    resources :variants, :only => [:index]
 
     resources :option_types do
       resources :option_values
     end
 
     resources :orders do
-      resources :return_authorizations
+      resources :addresses, :only => [:show, :update]
+
+      resources :return_authorizations do
+        member do
+          put :add
+          put :cancel
+          put :receive
+        end
+      end
       member do
-        put :address
-        put :delivery
         put :cancel
         put :empty
       end
@@ -61,7 +67,6 @@ Spree::Core::Engine.routes.draw do
     resources :zones
     resources :countries, :only => [:index, :show]
     resources :states,    :only => [:index, :show]
-    resources :addresses, :only => [:show, :update]
 
     resources :taxonomies do
       member do

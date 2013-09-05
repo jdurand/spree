@@ -18,13 +18,20 @@ describe Spree::Variant do
   end
 
   context "after create" do
-    it "should create a stock item for the variant for each stock location" do
-      Spree::StockLocation.delete_all # FIXME leaky database
-      Spree::StockLocation.create(:name => "Default")
-      product = create(:product)
-      lambda {
+    let!(:product) { create(:product) }
+
+    it "propagate to stock items" do
+      Spree::StockLocation.any_instance.should_receive(:propagate_variant)
+      product.variants.create(:name => "Foobar")
+    end
+
+    context "stock location has disable propagate all variants" do
+      before { Spree::StockLocation.any_instance.stub(propagate_all_variants?: false) }
+
+      it "propagate to stock items" do
+        Spree::StockLocation.any_instance.should_not_receive(:propagate_variant)
         product.variants.create(:name => "Foobar")
-      }.should change(Spree::StockItem, :count).by(1)
+      end
     end
   end
 
@@ -250,7 +257,7 @@ describe Spree::Variant do
     end
 
     it "orders options correctly" do
-      variant.option_values.should_receive(:joins).with(:option_type).and_return(scope = stub)
+      variant.option_values.should_receive(:joins).with(:option_type).and_return(scope = double)
       scope.should_receive(:order).with('spree_option_types.position asc').and_return(variant.option_values)
       variant.options_text
     end
@@ -323,6 +330,18 @@ describe Spree::Variant do
           variant.in_stock?.should be_true
         end
       end
+    end
+  end
+
+  describe '#total_on_hand' do
+    it 'should be infinite if track_inventory_levels is false' do
+      Spree::Config[:track_inventory_levels] = false
+      build(:variant).total_on_hand.should eql(Float::INFINITY)
+    end
+
+    it 'should match quantifier total_on_hand' do
+      variant = build(:variant)
+      expect(variant.total_on_hand).to eq(Spree::Stock::Quantifier.new(variant).total_on_hand)
     end
   end
 end

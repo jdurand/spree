@@ -8,9 +8,7 @@ module CapybaraExt
   end
 
   def eventually_fill_in(field, options={})
-    Capybara.wait_until do
-      find_field field
-    end
+    page.should have_css('#' + field)
     fill_in field, options
   end
 
@@ -27,9 +25,11 @@ module CapybaraExt
   end
 
   def select2_search(value, options)
-    id = find_label_by_text(options[:from])
-    options[:from] = "#s2id_#{id}"
-    targetted_select2_search(value, options)
+    label = find_label_by_text(options[:from])
+    within label.first(:xpath,".//..") do
+      options[:from] = "##{find(".select2-container")["id"]}"
+      targetted_select2_search(value, options)
+    end
   end
 
   def targetted_select2_search(value, options)
@@ -39,11 +39,12 @@ module CapybaraExt
   end
 
   def select2(value, options)
-    id = find_label_by_text(options[:from])
+    label = find_label_by_text(options[:from])
 
-    # generate select2 id
-    options[:from] = "#s2id_#{id}"
-    targetted_select2(value, options)
+    within label.first(:xpath,".//..") do
+      options[:from] = "##{find(".select2-container")["id"]}"
+      targetted_select2(value, options)
+    end
   end
 
   def select2_no_label value, options={}
@@ -84,18 +85,26 @@ module CapybaraExt
       raise "Could not find label by text #{text}"
     end
 
-    label ? label['for'] : text
+    label
   end
 
   def find_label(text)
     first(:xpath, "//label[text()[contains(.,'#{text}')]]")
   end
 
+  def wait_for_ajax
+    counter = 0
+    while page.execute_script("return $.active").to_i > 0
+      counter += 1
+      sleep(0.1)
+      raise "AJAX request took longer than 5 seconds." if counter >= 50
+    end
+  end
 end
 
 RSpec::Matchers.define :have_meta do |name, expected|
   match do |actual|
-    has_css?("meta[name='#{name}'][content='#{expected}']")
+    has_css?("meta[name='#{name}'][content='#{expected}']", visible: false)
   end
 
   failure_message_for_should do |actual|
@@ -110,7 +119,7 @@ end
 
 RSpec::Matchers.define :have_title do |expected|
   match do |actual|
-    has_css?("title", :text => expected)
+    has_css?("title", :text => expected, visible: false)
   end
 
   failure_message_for_should do |actual|

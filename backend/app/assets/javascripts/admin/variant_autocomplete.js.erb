@@ -70,7 +70,7 @@ adjustItems = function(shipment_number, variant_id, quantity){
     var shipment = _.findWhere(shipments, {number: shipment_number + ''});
     var inventory_units = _.where(shipment.inventory_units, {variant_id: variant_id});
 
-    var url = "/api/orders/" + order_number + "/shipments/" + shipment_number;
+    var url = Spree.routes.orders_api + "/" + order_number + "/shipments/" + shipment_number;
 
     var new_quantity = 0;
     if(inventory_units.length<quantity){
@@ -88,7 +88,7 @@ adjustItems = function(shipment_number, variant_id, quantity){
         url: Spree.url(url),
         data: { variant_id: variant_id, quantity: new_quantity }
       }).done(function( msg ) {
-        window.location.reload();
+        advanceOrder();
       });
     }
 }
@@ -130,8 +130,8 @@ startItemSplit = function(event){
   $.ajax({
     type: "GET",
     async: false,
-    url: Spree.url("/api/variants.json"),
-    data: { 
+    url: Spree.url(Spree.routes.variants_api),
+    data: {
       q: {
         "id_eq": variant_id
       }
@@ -143,7 +143,7 @@ startItemSplit = function(event){
   });
 
   var max_quantity = link.closest('tr').data('item-quantity');
-  var split_item_template = Handlebars.compile($('#variant_split_template').text()); 
+  var split_item_template = Handlebars.compile($('#variant_split_template').text());
   link.closest('tr').after(split_item_template({ variant: variant, shipments: shipments, max_quantity: max_quantity }));
   $('a.cancel-split').click(cancelItemSplit);
   $('a.save-split').click(completeItemSplit);
@@ -178,28 +178,40 @@ completeItemSplit = function(event) {
     $.ajax({
       type: "PUT",
       async: false,
-      url: Spree.url("/api/orders/" + order_number + "/shipments/" + original_shipment_number + "/remove.json"),
+      url: Spree.url(Spree.routes.orders_api + "/" + order_number + "/shipments/" + original_shipment_number + "/remove.json"),
       data: { variant_id: variant_id, quantity: quantity }
-    }).done(function(msg) {
-      window.location.reload();
     });
 
     if (new_shipment != undefined) {
       $.ajax({
         type: "POST",
         async: false,
-        url: Spree.url("/api/orders/" + order_number + "/shipments.json"),
+        url: Spree.url(Spree.routes.orders_api + "/" + order_number + "/shipments.json"),
         data: { variant_id: variant_id, quantity: quantity, stock_location_id: stock_location_id }
+      }).done(function(msg) {
+        advanceOrder();
       });
     } else {
       $.ajax({
         type: "PUT",
         async: false,
-        url: Spree.url("/api/orders/" + order_number + "/shipments/" + target_shipment_number + "/add.json"),
+        url: Spree.url(Spree.routes.orders_api + "/" + order_number + "/shipments/" + target_shipment_number + "/add.json"),
         data: { variant_id: variant_id, quantity: quantity }
+      }).done(function(msg) {
+        advanceOrder();
       });
     }
   }
+}
+
+advanceOrder = function() {
+  $.ajax({
+    type: "PUT",
+    async: false,
+    url: Spree.url(Spree.routes.checkouts_api + "/" + order_number + "/advance")
+  }).done(function() {
+    window.location.reload();
+  });
 }
 
 cancelItemSplit = function(event) {
@@ -226,10 +238,10 @@ addVariantFromStockLocation = function() {
   if(shipment==undefined){
     $.ajax({
       type: "POST",
-      url: Spree.url("/api/orders/" + order_number + "/shipments.json"),
+      url: Spree.url(Spree.routes.orders_api + "/" + order_number + "/shipments.json"),
       data: { variant_id: variant_id, quantity: quantity, stock_location_id: stock_location_id }
     }).done(function( msg ) {
-      window.location.reload();
+      advanceOrder();
     }).error(function( msg ) {
       console.log(msg);
     });
@@ -250,7 +262,7 @@ formatVariantResult = function(variant) {
 $.fn.variantAutocomplete = function() {
   this.parent().children(".options_placeholder").attr('id', this.parent().data('index'))
   this.select2({
-    placeholder: "Select a variant",
+    placeholder: Spree.translations.variant_placeholder,
     minimumInputLength: 3,
     ajax: {
       url: Spree.url(Spree.routes.variants_search),
