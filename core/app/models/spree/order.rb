@@ -53,6 +53,7 @@ module Spree
     has_many :payments, dependent: :destroy
     has_many :return_authorizations, dependent: :destroy
     has_many :state_changes, as: :stateful
+    has_many :inventory_units
 
     has_many :shipments, dependent: :destroy, :class_name => "Shipment" do
       def states
@@ -171,7 +172,11 @@ module Spree
 
     # If true, causes the confirmation step to happen during the checkout process
     def confirmation_required?
-      payments.map(&:payment_method).compact.any?(&:payment_profiles_supported?)
+      if payments.empty? and Spree::Config[:always_include_confirm_step]
+        true
+      else
+        payments.map(&:payment_method).compact.any?(&:payment_profiles_supported?)
+      end
     end
 
     # Indicates the number of items in the order
@@ -462,7 +467,7 @@ module Spree
      @insufficient_stock_lines ||= line_items.select(&:insufficient_stock?)
     end
 
-    def merge!(order)
+    def merge!(order, user = nil)
       order.line_items.each do |line_item|
         next unless line_item.currency == currency
         current_line_item = self.line_items.find_by_variant_id(line_item.variant_id)
@@ -474,6 +479,9 @@ module Spree
           line_item.save
         end
       end
+
+      self.associate_user!(user) if !self.user && !user.blank?
+
       # So that the destroy doesn't take out line items which may have been re-assigned
       order.line_items.reload
       order.destroy
