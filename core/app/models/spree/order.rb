@@ -154,7 +154,7 @@ module Spree
     end
 
     def completed?
-      !! completed_at
+      completed_at.present? || complete?
     end
 
     # Indicates whether or not the user is allowed to proceed to checkout.
@@ -247,13 +247,6 @@ module Spree
     def allow_cancel?
       return false unless completed? and state != 'canceled'
       shipment_state.nil? || %w{ready backorder pending}.include?(shipment_state)
-    end
-
-    def allow_resume?
-      # we shouldn't allow resume for legacy orders b/c we lack the information
-      # necessary to restore to a previous state
-      return false if state_changes.empty? || state_changes.last.previous_state.nil?
-      true
     end
 
     def awaiting_returns?
@@ -488,8 +481,8 @@ module Spree
     end
 
     def empty!
-      line_items.destroy_all
       adjustments.destroy_all
+      line_items.destroy_all
     end
 
     def clear_adjustments!
@@ -602,8 +595,12 @@ module Spree
       def after_cancel
         shipments.each { |shipment| shipment.cancel! }
 
-        OrderMailer.cancel_email(self.id).deliver
+        send_cancel_email
         self.payment_state = 'credit_owed' unless shipped?
+      end
+
+      def send_cancel_email
+        OrderMailer.cancel_email(self.id).deliver
       end
 
       def after_resume
