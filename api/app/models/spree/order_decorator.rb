@@ -15,11 +15,19 @@ Spree::Order.class_eval do
       order.create_payments_from_api params.delete(:payments_attributes) || []
       order.complete_from_api params.delete(:completed_at)
 
+      destroy_automatic_taxes_on_import(order, params)
       order.update_attributes!(params)
+
       order.reload
     rescue Exception => e
       order.destroy if order && order.persisted?
       raise e.message
+    end
+  end
+
+  def self.destroy_automatic_taxes_on_import(order, params)
+    if params.delete :import
+      order.adjustments.tax.destroy_all
     end
   end
 
@@ -79,7 +87,7 @@ Spree::Order.class_eval do
 
         extra_params = line_item.except(:variant_id, :quantity)
         line_item = self.contents.add(Spree::Variant.find(line_item[:variant_id]), line_item[:quantity])
-        line_item.update_attributes(extra_params) unless extra_params.empty?
+        line_item.update_attributes(extra_params, as: :api) unless extra_params.empty?
       rescue Exception => e
         raise "#{e.message} #{line_item}"
       end
@@ -154,7 +162,7 @@ Spree::Order.class_eval do
   def update_line_items(line_item_params)
     return if line_item_params.blank?
     line_item_params.each do |id, attributes|
-      self.line_items.find(id).update_attributes!(attributes)
+      self.line_items.find(id).update_attributes!(attributes, :as => :api)
     end
     self.ensure_updated_shipments
   end
