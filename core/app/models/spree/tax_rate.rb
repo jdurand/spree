@@ -82,15 +82,17 @@ module Spree
         shipping_fee = shipping_calculator.compute(order)
         if(shipping_calculator.preferred_taxable)
           tax_amount = shipping_fee * self.amount
-          tax_adjustment = order.adjustments.where(:originator_id => self.id, :originator_type => self.class).first_or_initialize do |t|
-            t.label = create_label
-            t.source = order
-            t.amount = 0
-            t.mandatory = false
-            t.state = "closed"
-            t.save
+          if self.zone.contains? order.tax_zone
+            tax_adjustment = order.adjustments.where(:originator_id => self.id, :originator_type => self.class).first_or_initialize do |t|
+              t.label = create_label
+              t.source = order
+              t.amount = 0
+              t.mandatory = false
+              t.state = "closed"
+              t.save
+            end
+            tax_adjustment.update_attribute_without_callbacks(:amount, (tax_adjustment.amount + tax_amount).round(2, BigDecimal::ROUND_HALF_UP))
           end
-          tax_adjustment.update_attribute_without_callbacks(:amount, (tax_adjustment.amount + tax_amount).round(2, BigDecimal::ROUND_HALF_UP))
         end
       end
     end
