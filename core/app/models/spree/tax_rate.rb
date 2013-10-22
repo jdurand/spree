@@ -81,10 +81,9 @@ module Spree
         shipping_calculator = shipping_adjustment.originator.calculator
         shipping_fee = shipping_calculator.compute(order)
         if(shipping_calculator.preferred_taxable)
-          order.adjustments.where(:originator_id => self.id).where(:originator_type => self.class).each do |tax_adjustment|
-            tax_amount = shipping_fee * self.amount
-            tax_adjustment.update_attribute_without_callbacks(:amount, (tax_adjustment.amount + tax_amount).round(2, BigDecimal::ROUND_HALF_UP))
-          end
+          tax_amount = shipping_fee * self.amount
+          tax_adjustment = order.adjustments.where(:originator_id => self.id, :originator_type => self.class).first_or_initialize
+          tax_adjustment.update_attribute_without_callbacks(:amount, (tax_adjustment.amount + tax_amount).round(2, BigDecimal::ROUND_HALF_UP))
         end
       end
     end
