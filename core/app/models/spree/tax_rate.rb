@@ -76,13 +76,20 @@ module Spree
     end
 
     def adjust_shipping(order)
-      return false unless self.tax_category.is_default
+      return false unless self.tax_category && self.tax_category.is_default
       order.adjustments.shipping.each do |shipping_adjustment|
         shipping_calculator = shipping_adjustment.originator.calculator
         shipping_fee = shipping_calculator.compute(order)
         if(shipping_calculator.preferred_taxable)
           tax_amount = shipping_fee * self.amount
-          tax_adjustment = order.adjustments.where(:originator_id => self.id, :originator_type => self.class).first_or_initialize
+          tax_adjustment = order.adjustments.where(:originator_id => self.id, :originator_type => self.class).first_or_initialize do |t|
+            t.label = self.create_label
+            t.source = order
+            t.amount = 0
+            t.mandatory = false
+            t.state = "closed"
+            t.save
+          end
           tax_adjustment.update_attribute_without_callbacks(:amount, (tax_adjustment.amount + tax_amount).round(2, BigDecimal::ROUND_HALF_UP))
         end
       end
