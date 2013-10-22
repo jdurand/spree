@@ -1,6 +1,8 @@
 module Spree
   class ShippingCalculator < Calculator
     belongs_to :calculable, polymorphic: true
+    preference :taxable, :boolean, :default => false
+    attr_accessible :preferred_taxable
 
     def compute(package_or_shipment)
       package = package_or_shipment.respond_to?(:to_package) ?

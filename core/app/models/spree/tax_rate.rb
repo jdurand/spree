@@ -38,6 +38,7 @@ module Spree
 
       self.match(order).each do |rate|
         rate.adjust(order)
+        rate.adjust_shipping(order)
       end
     end
 
@@ -71,6 +72,19 @@ module Spree
         end
       else
         create_adjustment(label, order, order)
+      end
+    end
+
+    def adjust_shipping(order)
+      order.adjustments.shipping.each do |shipping_adjustment|
+        shipping_calculator = shipping_adjustment.originator.calculator
+        shipping_fee = shipping_calculator.compute(order)
+        if(shipping_calculator.preferred_taxable)
+          order.adjustments.where(:originator_id => self.id).where(:originator_type => self.class).each do |tax_adjustment|
+            tax_amount = shipping_fee * self.amount
+            tax_adjustment.update_attribute_without_callbacks(:amount, (tax_adjustment.amount + tax_amount).round(2, BigDecimal::ROUND_HALF_UP))
+          end
+        end
       end
     end
 
