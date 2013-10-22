@@ -76,6 +76,7 @@ module Spree
     end
 
     def adjust_shipping(order)
+      return false unless self.tax_category.is_default
       order.adjustments.shipping.each do |shipping_adjustment|
         shipping_calculator = shipping_adjustment.originator.calculator
         shipping_fee = shipping_calculator.compute(order)
