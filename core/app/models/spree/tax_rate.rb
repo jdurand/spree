@@ -63,7 +63,7 @@ module Spree
           order.line_items.each { |line_item| create_adjustment(label, line_item, line_item) }
         else
           amount = -1 * calculator.compute(order)
-          label = Spree.t(:refund) + label
+          label = Spree.t(:refund) + ' ' + label
           order.adjustments.create({ amount: amount,
                                      source: order,
                                      originator: self,
@@ -71,7 +71,7 @@ module Spree
                                      label: label }, without_protection: true)
         end
       else
-        create_adjustment(label, order, order)
+        create_adjustment(label, order, order) if self.zone.contains? order.tax_zone
       end
     end
 
