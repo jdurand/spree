@@ -83,7 +83,7 @@ module Spree
         if(shipping_calculator.preferred_taxable)
           tax_amount = shipping_fee * self.amount
           tax_adjustment = order.adjustments.where(:originator_id => self.id, :originator_type => self.class).first_or_initialize do |t|
-            t.label = self.create_label
+            t.label = create_label
             t.source = order
             t.amount = 0
             t.mandatory = false
