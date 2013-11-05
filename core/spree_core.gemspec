@@ -16,7 +16,7 @@ Gem::Specification.new do |s|
   s.files        = Dir['LICENSE', 'README.md', 'app/**/*', 'config/**/*', 'lib/**/*', 'db/**/*', 'vendor/**/*']
   s.require_path = 'lib'
 
-  s.add_dependency 'activemerchant', '1.40.0'
+  s.add_dependency 'activemerchant', '1.41.0'
   s.add_dependency 'acts_as_list', '= 0.2.0'
   s.add_dependency 'awesome_nested_set', '2.1.5'
 
@@ -28,7 +28,7 @@ Gem::Specification.new do |s|
   s.add_dependency 'httparty', '~> 0.11' # For checking alerts.
   s.add_dependency 'json', '~> 1.7'
   s.add_dependency 'kaminari', '~> 0.14.1'
-  s.add_dependency 'money', '~> 5.1.1'
+  s.add_dependency 'money', '>= 5.1.1' # Allows anyone to use money from master. See #2737.
   s.add_dependency 'paperclip', '~> 3.4.1'
   s.add_dependency 'paranoia', '~> 1.3'
   s.add_dependency 'rails', '~> 3.2.14'
