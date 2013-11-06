@@ -71,7 +71,7 @@ module Spree
                                      label: label }, without_protection: true)
         end
       else
-        create_adjustment(label, order, order) if self.zone.contains? order.tax_zone
+        create_adjustment(label, order, order) if self.zone && self.zone.contains?(order.tax_zone)
       end
     end
 
