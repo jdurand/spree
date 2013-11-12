@@ -32,11 +32,12 @@ module Spree
         end
 
         private
-
+          def model_class
+            Order
+          end
           def load_order
             @order = Order.find_by_number!(params[:order_id], :include => :adjustments)
           end
-
       end
     end
   end
