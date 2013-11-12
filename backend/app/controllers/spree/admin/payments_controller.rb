@@ -101,6 +101,10 @@ module Spree
       def load_payment
         @payment = Payment.find(params[:id])
       end
+
+      def model_class
+        Payment
+      end
     end
   end
 end
