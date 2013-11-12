@@ -35,6 +35,9 @@ module Spree
         end
 
         private
+          def model_class
+            Order
+          end
           def order_params
             params.require(:order).permit(
               :email,
@@ -43,11 +46,9 @@ module Spree
               :ship_address_attributes => permitted_address_attributes
             )
           end
-
           def load_order
             @order = Order.includes(:adjustments).find_by_number!(params[:order_id])
           end
-
       end
     end
   end
