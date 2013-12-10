@@ -32,7 +32,7 @@ module Spree
       end
 
       def order_attributes
-        [:id, :number, :item_total, :total, :state, :adjustment_total, :user_id, :created_at, :updated_at, :completed_at, :payment_total, :shipment_state, :payment_state, :email, :special_instructions, :token]
+        [:id, :number, :item_total, :total, :ship_total, :state, :adjustment_total, :user_id, :created_at, :updated_at, :completed_at, :payment_total, :shipment_state, :payment_state, :email, :special_instructions, :token, :channel]
       end
 
       def line_item_attributes
@@ -60,7 +60,7 @@ module Spree
       end
 
       def taxon_attributes
-        [:id, :name, :pretty_name, :permalink, :position, :parent_id, :taxonomy_id]
+        [:id, :name, :pretty_name, :permalink, :parent_id, :taxonomy_id]
       end
 
       def inventory_unit_attributes
