@@ -186,7 +186,7 @@ describe Spree::CheckoutController do
 
       it "should render the edit template and display exception message" do
         response.should render_template :edit
-        flash[:error].should == Spree.t(:spree_gateway_error_flash_for_checkout)
+        flash.now[:error].should == Spree.t(:spree_gateway_error_flash_for_checkout)
         assigns(:order).errors[:base].should include("Invalid something or other.")
       end
     end
@@ -257,7 +257,7 @@ describe Spree::CheckoutController do
       end
 
       it "when GatewayError is raised" do
-        order.payments.first.stub(:process!).and_raise(Spree::Core::GatewayError.new(Spree.t(:payment_processing_failed)))
+        order.payments.any_instance.stub(:process!).and_raise(Spree::Core::GatewayError.new(Spree.t(:payment_processing_failed)))
         spree_put :update, :order => {}
         flash[:error].should == Spree.t(:payment_processing_failed)
       end

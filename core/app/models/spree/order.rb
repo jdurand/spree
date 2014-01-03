@@ -172,11 +172,12 @@ module Spree
 
     # If true, causes the confirmation step to happen during the checkout process
     def confirmation_required?
-      if payments.empty? and Spree::Config[:always_include_confirm_step]
-        true
-      else
-        payments.map(&:payment_method).compact.any?(&:payment_profiles_supported?)
-      end
+      Spree::Config[:always_include_confirm_step] ||
+        payments.valid.map(&:payment_method).compact.any?(&:payment_profiles_supported?) ||
+        # Little hacky fix for #4117
+        # If this wasn't here, order would transition to address state on confirm failure
+        # because there would be no valid payments any more.
+        state == 'confirm'
     end
 
     # Indicates the number of items in the order
@@ -498,12 +499,15 @@ module Spree
       state = "#{name}_state"
       if persisted?
         old_state = self.send("#{state}_was")
-        self.state_changes.create({
-          previous_state: old_state,
-          next_state:     self.send(state),
-          name:           name,
-          user_id:        self.user_id
-        }, without_protection: true)
+        new_state = self.send(state)
+        unless old_state == new_state
+          self.state_changes.create({
+            previous_state: old_state,
+            next_state:     new_state,
+            name:           name,
+            user_id:        self.user_id
+          }, :without_protection => true)
+        end
       end
     end
 
@@ -565,7 +569,7 @@ module Spree
 
       # Determine if email is required (we don't want validation errors before we hit the checkout)
       def require_email
-        return true unless new_record? or state == 'cart'
+        return true unless new_record? or ['cart', 'address'].include?(state)
       end
 
       def ensure_line_items_present
@@ -596,7 +600,7 @@ module Spree
         shipments.each { |shipment| shipment.cancel! }
 
         send_cancel_email
-        self.payment_state = 'credit_owed' unless shipped?
+        self.update_column(:payment_state, 'credit_owed') unless shipped?
       end
 
       def send_cancel_email

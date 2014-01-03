@@ -1,7 +1,10 @@
-## Spree 2.0.7 (unreleased) ##
+## Spree 2.0.8 (unreleased) ##
 
-*For all commits, please see [the GitHub compare view](https://github.com/spree/spree/compare/v2.0.6...v2.0.7).*
+* Don't serve JS to non XHR requests. Prevents sentive data leaking. Thanks to
+  Egor Homakov for pointing that out in Spree codebase.
+  See http://homakov.blogspot.com.br/2013/05/do-not-use-rjs-like-techniques.html
+  for details.
 
-*   Fixed taxon reordering issues. #3390 #3956
+* 'Only show completed orders' checkbox status will now persist when paging through orders.
 
-    Dan Pritchett
+    * darbs + Ryan Bigg

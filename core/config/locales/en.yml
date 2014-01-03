@@ -954,6 +954,7 @@ en:
     shipment_state: Shipment State
     shipment_states:
       backorder: backorder
+      canceled: canceled
       partial: partial
       pending: pending
       ready: ready
@@ -1052,6 +1053,8 @@ en:
     time: Time
     to_add_variants_you_must_first_define: To add variants, you must first define
     total: Total
+    total_price: Total price
+    track_inventory: Track Inventory
     tracking: Tracking
     tracking_number: Tracking Number
     tracking_url: Tracking URL
