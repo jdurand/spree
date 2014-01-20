@@ -11,7 +11,8 @@ module Spree
     attr_accessible :name, :presentation, :cost_price, :lock_version,
                     :position, :option_value_ids,
                     :product_id, :option_values_attributes, :price,
-                    :weight, :height, :width, :depth, :sku, :cost_currency, :track_inventory
+                    :weight, :height, :width, :depth, :sku, :cost_currency,
+                    :track_inventory, :options
 
     has_many :inventory_units
     has_many :line_items
@@ -44,7 +45,7 @@ module Spree
     after_create :set_position
 
     # default variant scope only lists non-deleted variants
-    scope :deleted, lambda { where('deleted_at IS NOT NULL') }
+    scope :deleted, lambda { where("#{quoted_table_name}.deleted_at IS NOT NULL") }
 
     def self.active(currency = nil)
       joins(:prices).where(deleted_at: nil).where('spree_prices.currency' => currency || Spree::Config[:currency]).where('spree_prices.amount IS NOT NULL')
@@ -78,6 +79,12 @@ module Spree
     # their own definition.
     def deleted?
       deleted_at
+    end
+
+    def options=(options = {})
+      options.each do |option|
+        set_option_value(option[:name], option[:value])
+      end
     end
 
     def set_option_value(opt_name, opt_value)

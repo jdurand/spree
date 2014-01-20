@@ -38,6 +38,9 @@ module Spree
           def load_order
             @order = Order.find_by_number!(params[:order_id], :include => :adjustments)
           end
+          def model_class
+            Spree::Order
+          end
       end
     end
   end

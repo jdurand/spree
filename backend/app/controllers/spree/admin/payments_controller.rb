@@ -109,7 +109,7 @@ module Spree
       end
 
       def model_class
-        Payment
+        Spree::Payment
       end
     end
   end
